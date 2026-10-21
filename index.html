@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Paloma Cobros · Mercado Pago</title>
+<style>
+  :root { --verde: #17855a; --verde-oscuro: #126a48; --verde-suave: #e7f5ee; --grafito: #1f2328; --gris: #5b6470; --rojo: #b42318; --rojo-suave: #fdecea; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: #f6f7f8; color: var(--grafito); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { width: 100%; max-width: 460px; background: #fff; border: 1px solid #e3e6e8; border-radius: 16px; padding: 28px 24px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .marca { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--verde); margin-bottom: 18px; }
+  .marca span { display: inline-flex; width: 30px; height: 30px; border-radius: 8px; background: var(--verde); color: #fff; align-items: center; justify-content: center; font-size: 15px; }
+  h1 { font-size: 21px; line-height: 1.3; margin: 0 0 8px; }
+  p { margin: 0 0 10px; color: var(--gris); }
+  .caja { margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: var(--verde-suave); color: var(--verde-oscuro); font-size: 14px; }
+  .caja.error { background: var(--rojo-suave); color: var(--rojo); }
+  ol { margin: 8px 0 0; padding-left: 20px; color: var(--gris); }
+  small { display: block; margin-top: 18px; color: #8a929b; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="marca"><span>P</span>Paloma Cobros</div>
+  <h1 id="titulo">Volviendo a Paloma Cobros…</h1>
+  <p id="texto">Un segundo: estamos llevando la autorización de Mercado Pago a la PC de la caja.</p>
+  <div id="detalle"></div>
+  <small>Esta página no guarda nada, no usa cookies ni manda datos a ningún lado: solo pasa la respuesta de Mercado Pago a Paloma Cobros, que corre en esta misma PC.</small>
+</main>
+<script>
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var code = q.get('code');
+  var state = q.get('state');
+  var error = q.get('error');
+  var titulo = document.getElementById('titulo');
+  var texto = document.getElementById('texto');
+  var detalle = document.getElementById('detalle');
+
+  function mostrar(t, x, pasos) {
+    titulo.textContent = t;
+    texto.textContent = x;
+    var caja = document.createElement('div');
+    caja.className = 'caja error';
+    if (pasos && pasos.length) {
+      var ol = document.createElement('ol');
+      for (var i = 0; i < pasos.length; i++) {
+        var li = document.createElement('li');
+        li.textContent = pasos[i];
+        ol.appendChild(li);
+      }
+      caja.appendChild(document.createTextNode('Qué hacer:'));
+      caja.appendChild(ol);
+    }
+    detalle.textContent = '';
+    detalle.appendChild(caja);
+    // Lo que vino en la dirección no queda en el historial del navegador.
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  }
+
+  var reintentar = [
+    'Volvé a Paloma Cobros, en la PC de la caja.',
+    'Entrá a Ajustes → Mercado Pago y tocá «Vincular con Mercado Pago» de nuevo.',
+    'Si sigue sin andar, usá «Pegar Access Token» (la guía está ahí mismo).'
+  ];
+
+  // state = "<puerto>.<nonce>": lo arma Paloma Cobros al abrir esta página.
+  var m = /^(\d{4,5})\.([A-Za-z0-9_-]{16,128})$/.exec(state || '');
+  var puerto = m ? Number(m[1]) : NaN;
+  var stateOk = !!m && puerto >= 1024 && puerto <= 65535;
+
+  if (error) {
+    var cancelado = error === 'access_denied';
+    mostrar(
+      cancelado ? 'No se vinculó Mercado Pago' : 'Mercado Pago no autorizó la vinculación',
+      cancelado
+        ? 'La autorización se canceló en Mercado Pago. No se vinculó nada y no cambió nada en tu cuenta.'
+        : 'Mercado Pago respondió con un error (' + String(error).slice(0, 60) + '). No se vinculó nada.',
+      reintentar
+    );
+    return;
+  }
+  if (!stateOk) {
+    mostrar(
+      'Este enlace no sirve',
+      'Falta el dato que dice a qué Paloma Cobros volver, o vino mal. Puede ser un enlace viejo o copiado de otra PC.',
+      reintentar
+    );
+    return;
+  }
+  if (!code || !/^[A-Za-z0-9_.:-]{4,512}$/.test(code)) {
+    mostrar('Mercado Pago no mandó la autorización', 'Volvió sin el código de autorización. No se vinculó nada.', reintentar);
+    return;
+  }
+
+  var destino = 'http://127.0.0.1:' + puerto + '/mp/vuelta?code=' + encodeURIComponent(code) + '&state=' + encodeURIComponent(state);
+  // Si Paloma Cobros no está abierto, el navegador muestra un error de conexión:
+  // por las dudas se deja la explicación lista antes de irse.
+  detalle.innerHTML = '';
+  var caja = document.createElement('div');
+  caja.className = 'caja';
+  caja.textContent = 'Si en unos segundos ves un error de conexión, abrí Paloma Cobros en esta PC y volvé a vincular desde Ajustes → Mercado Pago.';
+  detalle.appendChild(caja);
+  location.replace(destino);
+})();
+</script>
+</body>
+</html>
